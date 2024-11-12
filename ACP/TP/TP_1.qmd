@@ -1,0 +1,418 @@
+---
+title: "TP 1 :  Analyse en composantes principales (ACP)"
+author: "Zaineb Smida"
+date: last-modified
+lang: fr
+format:
+  pdf:
+    embed-resources: true
+    self-contained-math: true
+    self-contained: true
+    code-fold: true
+    code-summary: "Show the code"
+    number-sections: true
+    standalone: true
+params:
+  solution: true
+execute: 
+  cache: false
+---
+
+
+Le fichier étudié  concerne  25 pays de l'Union Européenne (source : Eurostat 2002). Les variables considérées sont les suivantes :
+
+* région (en 3 catégories : 1 = pays de l'est, 2 = pays du sud, 3 = autres)
+* espérance de vie à la naissance pour un homme (en années)
+* espérance de vie à la naissance pour une femme (en années)
+* population (en milliers d'habitants)
+* taux d'activité (en pourcentage)% : %population active/population en âge de travailler
+* produit intérieur brut par habitant (en standards de pouvoir d'achat)
+* taux d'inflation (en pourcentage)
+* taux d'emploi (en pourcentage) : actifs occupés/population en âge de travailler
+* taux de chômage (en pourcentage): chômeurs/population active
+* taux de chômage longue durée (en pourcentage)
+* nombre de mariages (pour 1000 personnes)
+* nombre d'abonnés aux services de téléphonie mobile (en
+milliers)
+* variable indicatrice qui vaut 1 pour les pays de l'Europe des 15.
+
+Packages nécessaires : 
+```{r setup, message=FALSE}
+library("FactoMineR")
+library("ggcorrplot")
+```
+
+
+## Question
+
+Importer le fichier `pays-eu.txt` sous **R**. Vous pouvez l'appeler `pays`
+
+::: {.callout-caution icon=false collapse=false, .content-visible when-profile="exercise"}
+#### Conseils
+Utiliser la fonction `read.table()`. Lorsque la première ligne du fichier txt contient le nom des variables, il faut ajouter l'option `header = T` pour l'indiquer. Vous pouvez visualiser que l'importation s'est correctement effectuée en faisant `View(pays)`. Il peut être utile d'ajouter des noms de lignes en utilisant la fonction `row.names()`.
+:::
+
+::: {.callout-tip icon=false collapse=false, .content-hidden when-profile="solution"}
+### Solution
+`r if (!params$solution) ":::  {.content-hidden}"` 
+```{r include=params$solution}
+pays <- read.table("pays_eu.txt", header = T)
+row.names(pays) <- pays$PAYS
+pays$REGION <- factor(pays$REGION)
+pays$UE15 <- factor(pays$UE15)
+```
+`r if (!params$solution) ":::"` 
+:::
+
+
+## Question
+
+Réaliser une étude univariée rapide des données à l'aide d'indicateurs numériques et de graphiques. Vous pouvez également représenter les nuages de points entre les paires de variables.
+
+::: {.callout-caution icon=false collapse=false, .content-visible when-profile="exercise"}
+#### Conseils
+Voici quelques fonctions **R** de base permettant de faire de l'analyse univariée :
+
+* `summary()` retourne plusieurs indicateurs comme le minimum, le maximum, la moyenne, la médiane, les quartiles,
+* `hist()` prend une variable quantitative en entrée et retourne un histogramme,
+* `boxplot()` prend une variable quantitative en entrée et retourne une boîte à moustache,
+* `pairs()` prend en entrée plusieurs variables quantitatives (sous forme d'un `data.frame` et retourne toutes les nuages de points possibles entre paires de variables)
+* la fonction `plot()` s'utilise principalement sur deux variables quantitatives
+
+:::
+
+::: {.callout-tip icon=false collapse=false, .content-visible when-profile="solution"}
+#### Solution
+`r if (!params$solution) ":::  {.content-hidden}"` 
+Résumé statistique des variables quantitatives (minium, maximum, moyenne, médiane, quartiles) :
+
+```{r, include=params$solution}
+summary(pays[, -1])
+```
+
+Affichage des distributions, en utilisant des histogrammes et densités non paramétriques :
+
+```{r, fig.width=12, fig.height = 6, include=params$solution}
+par(mfrow = c(3, 4), las = 1)
+nom_var <- c("espérance de vie à la naissance pour un homme",
+             "espérance de vie à la naissance pour une femme",
+             "population (en milliers d'habitants)",
+             "taux d'activité (en %)",
+             "PIB (en standards de pouvoir d'achat)",
+             "taux d inflation (en %)",
+             "taux d emploi (en %)",
+             "taux de chômage (en %)",
+             "taux de chômage longue durée (en %)", 
+             "nombre de mariages (pour 1000 personnes)", 
+             "nombre d'abonnés téléphonie mobile (en milliers)")
+for(k in 3:13) {
+  temp <- density(pays[, k])
+  hist(pays[, k], main = names(pays)[k], 
+       xlab = nom_var[k-2], ylab = "densité", probability = T,
+       col = "lightblue", ylim = range(temp$y))
+  lines(temp, col = "royalblue", lty = 2, lwd = 1.5)
+  rug(pays[, k], col = "red")
+}
+```
+
+**Remarque :** les ordres de grandeurs sont parfois très différents d'une variable à une autre. En effet, certaines variables sont des comptages (POP, TEL), alors que d'autres sont des pourcentages (TEMP), d'autres des variables quantitatives inférieures à 100 (EVH, EVF); c'est pourquoi, il pourrait être intéressant de reproduire ce graphique sur les données centrées et réduites. 
+
+On trace les nuages de points entre chaque paire de variable, ce qui permet de détecter d'éventuels liens (linéaires et non linéaires) entre les paires de variables ainsi que des valeurs atypiques. Par exemple, on constate que le lien entre certaines variables (comme EVH/EVF, TCHOM/TCHOMLD, POP/TEL) est linéaire et très fort. Touefois, il est difficile de lire ce graphique car il contient beaucoup d'informations. 
+
+```{r, fig.width = 14, fig.height = 12, include=params$solution}
+pairs(pays[, 3:13], main = "Matrice des nuages de points", 
+      pch = 19, col = "blue", panel = panel.smooth)
+
+```
+
+On peut tracer directement les nuages de points qui nous intéressent et représenter par la même occasion la droite de régression linéaire. On représente ici les liens les plus forts.
+
+```{r, fig.width = 12, fig.height = 5, include=params$solution}
+par(las = 1, mfrow = c(1, 2))
+plot(EVH ~ EVF, data = pays,
+     pch = 19, 
+     col = "blue")
+abline(lm(EVH ~ EVF, data = pays), col = "red", lty = 2)
+
+plot(TEMP ~ TACT, data = pays,
+     pch = 19, 
+     col = "blue")
+abline(lm(TEMP ~ TACT, data = pays), col = "red", lty = 2)
+
+```
+`r if (!params$solution) ":::"` 
+:::
+
+
+## Question
+
+Donner la matrice des corrélations et les nuages de points associés. Commenter.
+
+::: {.callout-caution icon=false collapse=false, .content-visible when-profile="exercise"}
+#### Conseils
+
+* `cor()` prend entrée plusieurs variables quantitatives et retourne la matrice des corrélations,
+* la fonction `ggcorrplot()` du package **ggcorrplot** retourne une matrice de corrélation avec une couleur de palette divergente
+
+:::
+
+::: {.callout-tip icon=false collapse=false, .content-visible when-profile="solution"}
+#### Solution
+`r if (!params$solution) ":::  {.content-hidden}"` 
+On peut représenter la matrice de corrélations linéaires :
+
+```{r, message = F, fig.width = 7, fig.height = 7, include=params$solution}
+cor <- cor(pays[3:13])
+ggcorrplot(cor, hc.order = TRUE, type = "lower", lab = TRUE)
+```
+
+La matrice de corrélations confirme qu'il existe des liens de corrélations entre les variables. Par ailleurs, on constate que certaines variables sont très corrélées entre elles (comme EVH/EVF, TCHOM/TCHOMLD, POP/TEL). Dans ce cas, il peut être improductif d'inclure toutes ces variables dans l'ACP. Une solution consisterait à ne choisir qu'une variable sur les deux. 
+`r if (!params$solution) ":::"`  
+:::
+
+
+
+## Question
+
+L'ACP vous paraît-elle justifiée ?
+
+
+::: {.callout-tip icon=false collapse=false, .content-visible when-profile="solution"}
+#### Solution
+`r if (!params$solution) ":::  {.content-hidden}"`
+La matrice de corrélations confirme qu'il existe des liens de corrélations entre les variables. Par ailleurs, il est difficile d'interpréter tous les liens qui existent, c'est pourquoi l'ACP semble être appropriée.
+`r if (!params$solution) ":::"` 
+:::
+
+
+
+## Question
+
+Déterminer  le nombre de composantes principales à retenir pour cette ACP. Justifier votre réponse.
+
+::: {.callout-caution icon=false collapse=false, .content-visible when-profile="exercise"}
+#### Conseils
+
+* La fonction `PCA()` du package **FactoMineR** permet de réaliser une ACP,
+* La fonction `str()` appliquée sur le résultat de l'ACP permet d'identifier les informations retournées. On accède aux éléments de cet objet avec le symbole `$`
+
+:::
+
+::: {.callout-tip icon=false collapse=false, .content-visible when-profile="solution"}
+#### Solution
+`r if (!params$solution) ":::  {.content-hidden}"` 
+On utilise la fonction `PCA()`:
+
+```{r, message = F, include=params$solution}
+res <- PCA(pays[, 3:13], graph = FALSE)
+```
+
+On extrait les valeurs propres : 
+```{r, message = F,  include=params$solution}
+eigenvalues <- res$eig[, 1]
+eigenvalues
+```
+
+Selon les critères :
+
+* Critère de Kaiser : 3 vp > 1 mais $\lambda_4 = 0.97$
+* Critère de la part d'inertie expliquée : $84\%$ de l'inertie est conservée si l'on retient les 4 premières composantes principales
+* Critère de la différence : on va tracer l'éboulis des valeurs propres
+
+```{r, message = F, fig.width = 6, fig.height = 4, include=params$solution}
+par(las = 1)
+plot(eigenvalues, type = "b", pch = 19,
+     xlab = "Indice des valeurs propres",
+     ylab = "Valeurs propres",
+     main = "Eboulis des valeurs propres")
+```
+
+**Conclusion :** on pourrait choisir de retenir 3 ou 4 axes 
+`r if (!params$solution) ":::"` 
+:::
+
+
+
+## Question
+
+Interpréter les composantes principales retenues à l'aide des variables initiales. Donner un (des) graphique(s) permettant de visualiser l'interprétation.
+
+::: {.callout-caution icon=false collapse=false, .content-visible when-profile="exercise"}
+#### Conseils
+
+* On pourra accéder aux coordonnées des variables à partir de l'objet retourné par la fonction `PCA()`. Il pourra être utile de regarder aussi les contributions. La fonction `plot()` appliqué sur les résultats de l'ACP, en ajoutant l'option `choix = "var"` permet de représenter le graphique des variables
+
+:::
+
+::: {.callout-tip icon=false collapse=false, .content-visible when-profile="solution"}
+#### Solution
+`r if (!params$solution) ":::  {.content-hidden}"` 
+On va d'abord représenter les coordonnées des variables sur les composantes principales :
+
+```{r, include=params$solution}
+library(kableExtra)
+print_table <- function(my_tab) {
+  my_tab[, 1:ncol(my_tab)] <- lapply(my_tab[, 1:ncol(my_tab)], 
+                function(x) {
+    cell_spec(round(x, 3), bold = T, color = spec_color(abs(x), end = 0.9),
+              font_size = spec_font_size(abs(x)))
+                  })
+
+  kbl(my_tab, escape = F, align = "c") %>%
+    kable_classic("striped", full_width = F)  
+}
+#print_table(as.data.frame(res$var$coord)[, 1:4])
+as.data.frame(res$var$coord)[, 1:4]
+```
+
+On peut représenter le graphique des variables ainsi : 
+```{r, message = F, fig.width = 4, fig.height = 4, include=params$solution}
+plot(res, axes = c(1, 2), choix = "var")
+```
+
+```{r, message = F, fig.width = 4, fig.height = 4, include=params$solution}
+plot(res, axes = c(3, 4), choix = "var")
+```
+
+* L'axe 1 est corrélé positivement à des variables liées au développement d'un pays (espérance de vie H/F, PIB, TACT). Il est négativement corrélée aux deux variables de chômage (TCHOM et TCHOMLD).
+
+* L'axe 2 est corrélé positivement à des variables liées à la population (POP et TEL)
+
+* L'axe 3 oppose clairement la variable taux d'emploi (corrélé positivement à l'axe 3) à l'inflation (corrélée négativement à l'axe 3). La variable TEMP est assi corrélée négativement à l'axe 2, mais comme la contribution de cette variable est plus forte sur l'axe 3, on ne considérera pas cette variable sur l'axe 2.
+
+* L'axe 4 est corrélé positivement à la variable MARIAGE.
+
+On peut aussi regarder les contributions des variables : une forte contribution sera une contribution supérieur à $100/11=9$; il semble que nous n'ayons pas omis d'interpréter des variables par rapport aux axes.
+
+```{r, include=params$solution}
+#print_table(as.data.frame(res$var$contrib)[, 1:4])
+as.data.frame(res$var$contrib)[, 1:4]
+```
+`r if (!params$solution) ":::"` 
+:::
+
+
+## Question
+
+Quels sont les pays bien représentés sur chacun des axes retenus ? Justifier votre réponse.
+
+::: {.callout-caution icon=false collapse=false, .content-visible when-profile="exercise"}
+#### Conseils
+
+* On pourra accéder aux cosinus carré des individus à partir de l'objet retourné par la fonction `PCA()`. 
+
+:::
+
+::: {.callout-tip icon=false collapse=false, .content-visible when-profile="solution"}
+#### Solution
+`r if (!params$solution) ":::  {.content-hidden}"` 
+On récupère les cosinus carrés des individus sur les composantes principales :
+
+```{r, include=params$solution}
+df <- as.data.frame(res$ind$cos2)[, 1:4]
+#print_table(df)
+df
+```
+
+Sur l'axe 1, les pays avec une valeurs supérieures à 0.5 sont : 
+```{r, include=params$solution}
+pays$PAYS[df[, 1] > 0.5]
+```
+
+Sur l'axe 2, les pays avec une valeur supérieure à 0.25 sont :
+
+```{r, include=params$solution}
+pays$PAYS[df[, 2] > 0.25]
+```
+
+Sur l'axe 3, les pays avec une valeur supérieure à 0.15 sont :
+
+```{r, include=params$solution}
+pays$PAYS[df[, 3] > 0.15]
+```
+
+Sur l'axe 4, les pays avec une valeur supérieure à 0.1 sont :
+
+```{r, include=params$solution}
+pays$PAYS[df[, 4] > 0.1]
+```
+`r if (!params$solution) ":::"` 
+:::
+
+
+
+## Question
+
+Commenter les contributions des pays aux premiers axes.
+
+::: {.callout-caution icon=false collapse=false, .content-visible when-profile="exercise"}
+#### Conseils
+
+* On pourra accéder aux contributions des individus à partir de l'objet retourné par la fonction `PCA()`. 
+
+:::
+
+::: {.callout-tip icon=false collapse=false, .content-visible when-profile="solution"}
+#### Solution
+`r if (!params$solution) ":::  {.content-hidden}"` 
+On récupère les contributions des individus sur les composantes principales :
+
+```{r, include=params$solution}
+df <- as.data.frame(res$ind$contrib)[, 1:4]
+#print_table(df)
+df
+```
+
+On remarque que Chypre a une forte contribution sur l'axe 4. 
+`r if (!params$solution) ":::"` 
+:::
+
+
+## Question
+
+Réaliser le(s) graphique(s) des pays et commenter l'ACP.
+
+::: {.callout-caution icon=false collapse=false, .content-visible when-profile="exercise"}
+#### Conseils
+
+* On pourra accéder aux coordonnées des individus à partir de l'objet retourné par la fonction `PCA()`. Il pourra être utile de regarder aussi les contributions. La fonction `plot()` appliqué sur les résultats de l'ACP, en ajoutant l'option `choix = "ind"` permet de représenter le graphique des variables
+:::
+
+::: {.callout-tip icon=false collapse=false, .content-visible when-profile="solution"}
+#### Solution
+`r if (!params$solution) ":::  {.content-hidden}"` 
+On peut représenter le graphique des variables ainsi : 
+```{r, message = F, fig.width = 4, fig.height = 4, include=params$solution}
+plot(res, axes = c(1, 2), choix = "ind")
+```
+
+```{r, message = F, warning = F, fig.width = 4, fig.height = 4, include=params$solution}
+plot(res, axes = c(3, 4), choix = "ind")
+```
+
+* Sur l'axe 1 : les pays comme la Suède, le Pays-Bas et l'Autriche ont des valeurs élevées de EVH, EVH, PIBH et TACT et faibles pour les variables TCHOM et TCHOMLD, alors que cela est plutôt l'inverse pour la Pologne, la Slovaquie, la lettonie, la Lituanie et l'Estonie.
+
+* Sur l'axe 2 : les pays comme la France, l'Allemagne, l'Espagne et l'Italie ont des valeurs de POP et TEL élevés alors  que les pays comme le Danemark, l'Irlande et le Portugal ont des valeurs de POP et TEL faibles
+
+* Sur l'axe 3 : les pays comme la République Tchèque, le Danemark, l'Allemagne, la Lituanie, et le Royaume-Uni, ont des valeurs fortes de TEMP et faibles de TINF alors que c'est l'inverse pour
+la Belgique, la Grèce, l'Irlande, la Hongrie, Malte et la Slovénie.
+
+* Sur l'axe 4 : CHYPRE a un Taux de mariage et dans une moindre mesure, Malte et la Grèce
+`r if (!params$solution) ":::"` 
+:::
+
+
+
+## Question
+
+Refaire l'analyse en utilisant la fonction `PCAshiny()` du package **Factoshiny**:
+
+::: {.callout-tip icon=false collapse=false, .content-visible when-profile="solution"}
+#### Solution
+`r if (!params$solution) ":::  {.content-hidden}"` 
+```{r, eval=FALSE, include=params$solution}
+library(Factoshiny)
+PCAshiny(pays2)
+```
+`r if (!params$solution) ":::"` 
+:::

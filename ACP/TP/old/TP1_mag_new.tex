@@ -1,0 +1,264 @@
+\documentclass[11pt]{article}
+\usepackage{times}
+\usepackage[latin1]{inputenc}
+\usepackage{amsmath}
+\usepackage{array}
+\usepackage{multirow}
+%\usepackage{rotating}
+\usepackage{pstricks}
+
+% test de contrôle continu deug mass 2003
+
+
+\textwidth 15cm
+\textheight 24cm
+%\topmargin -0.5cm
+\oddsidemargin = 0cm %  -0.7cm
+\baselineskip 4.5ex
+\voffset=-2cm
+
+\def\Indi{\mbox{{\rm 1\kern-.32em I}}}
+
+\parindent=0pt
+
+\pagestyle{empty}
+
+\begin{document}
+
+
+
+\vskip -1.5cm
+
+
+{\begin{tabular}{cc}
+\it  Magistère d'Economiste Statisticien\\
+\end{tabular}\hfill
+{\begin{tabular}{c}
+TSE - Université Toulouse 1 Capitole\\
+%2008-2009\\
+\end{tabular}
+
+\vspace{1cm}
+
+\centerline{\Large\bf  Analyse des données}
+
+\begin{center}
+{\Large\bf TP 1 :  Analyse en composantes principales (ACP)  \\  \vspace{0.3cm} avec R  (packages FactoMineR et Factoshiny, fonction PCA())  }
+\end{center}
+
+\noindent w
+}
+
+
+\begin{enumerate}
+\item Importer le fichier {\tt pays-eu.txt} sous {\tt R}.
+\item Réaliser une étude univariée rapide des données à l'aide d'indicateurs numériques et de graphiques.
+\item   Donner la matrice des corrélations et les nuages de points associés. Commenter.
+\item L'ACP vous paraît-elle justifiée~?
+\item Déterminer  le nombre de composantes principales à retenir pour cette ACP. Justifier votre réponse.
+\item Interpréter les composantes principales retenues à l'aide des
+variables initiales. Donner un (des) graphique(s) permettant de visualiser l'interprétation.
+\item Quels sont les pays bien représentés sur chacun des axes retenus~?
+Justifier votre réponse.
+\item Commenter les contributions des pays aux premier axe.
+%\item Donner les corrélations de la variable LARCENRY avec les axes retenus. Commenter.
+\item Réaliser le(s) graphique(s) des pays et commenter l'ACP.
+\end{enumerate}
+
+\bigskip
+{\bf Annexe : Initiation à R }
+\bigskip
+
+R utilise des {\bf fonctions} ou des opérateurs qui agissent sur des objets (vecteurs, matrices, data-frames etc.).
+
+\bigskip
+
+{\bf Importation  de données}
+
+Lecture d'un fichier texte~: fonction read.table(.)
+
+\begin{verbatim}
+employes=read.table("employes.txt",header=T)
+employes[,-1]#enlève la première colonne
+head(employes)# début du fichier
+employes[,c(2,3,4)] # donne les colonnes 2, 3 et 4 du fichier
+employes[1:10,]# donne les 10 premières lignes du fichier
+\end{verbatim}
+
+employes est un data-frame (format par défaut sous R,
+format obtenu par la lecture de fichiers externes).
+\bigskip
+
+{\bf Les jeux de données de R}
+
+R contient plusieurs jeux de données, qui peuvent être chargés par la fonction data.
+Pour voir leur liste taper ~: data()
+
+\bigskip
+\begin{verbatim}
+data(Orange)  # charge le jeu de données Orange
+help(Orange)   # donne des informations sur le jeu de données
+\end{verbatim}
+
+\bigskip
+{\bf Edition intéractive des données}
+
+La fonction edit permet de modifier les données avec la souris. En cliquant sur le nom de la colonne, on peut aussi modifier son type
+(real=numérique=quantitative, character=facteur=qualitative).
+
+
+\begin{verbatim}
+data(airquality) # charge le jeu de données airquality
+aq=edit(airquality) # édite le jeu de données et le stocke dans aq
+\end{verbatim}
+
+
+Ainsi, le jeu de données initial airquality n'est pas modifié. On peut également utiliser la fonction fix, mais les modifications  qu'on apporte
+écrasent le tableau originel.
+
+Pour créer un jeu de données en entrant les données au clavier~:
+
+\begin{verbatim}
+donnees=data.frame()  # crée le tableau donnees
+fix(donnees)  # édite le tableau vide
+\end{verbatim}
+
+%\newpage
+
+{\bf Résumé numérique des variables}
+
+Les fonctions suivantes donnent les statistiques descriptives usuelles pour les variables quantitatives~:
+
+\begin{verbatim}
+attach(airquality) # rend les variables appelables directement
+mean(Ozone) # moyenne de Ozone
+sd(Ozone)  # écart-type
+var(Ozone)  # variance
+median(Ozone) # médiane
+quantile(Ozone)  # donne le min, le max et les quartiles
+summary(Ozone)  # min, max, moyenne et quartiles
+summary(airquality)  # statistiques pour le data frame tout entier
+cor(Ozone,Temp) # corrélation entre Ozone et Temp
+
+\end{verbatim}
+
+
+Si on veut que R calcule ces statistiques en présence de données manquantes, il faut rajouter l'argument na.rm=T aux fonctions ci-dessus.
+
+Pour avoir le nombre de données non manquantes~: sum(!is.na(Ozone))
+
+%{\bf{\it Application}~: Calculer les différentes statistiques simples pour les variables quantitatives du fichier employes.}
+
+\bigskip
+
+Si la variable est de type facteur, summary donne simplement les effectifs des différentes modalités, ce que l'on peut aussi obtenir par la fonction table.
+
+\bigskip
+
+Comme cela n'a pas de sens de calculer une moyenne ou une variance pour une variable qualitative, toute
+variable qualitative codée en numérique doit être mise au type facteur (fonction factor).
+\begin{verbatim}
+summary(employes)# noter ce qu'il fait pour la variable sexe
+employes$sexe=factor(employes$sexe,labels=c("F","M"))#modifie le type
+de la variable sexe dans le tableau
+#cette opération se fait également en éditant le fichier
+# et en changeant son type
+summary(employes)
+table(employes$sexe) #fait la même chose que summary pour une qualitative
+round(prop.table(table(employes$stat_pro)),digits=2)#tableau des fréquences
+relatives arrondies à 2 décimales
+
+#Tableau de contigence
+employes$stat_pro=factor(employes$stat_pro, labels=c("employé de bureau",
++   "agent de sécurité","manager")) # transforme la variable qualitative
+ codée stat_pro en facteur
+ tab= table(employes$sexe,employes$stat_pro) # crée le tableau de contingence et
+le stocke dans tab
+
+\end{verbatim}
+%\newpage
+{\bf Graphiques}
+
+{\it Pour les variables qualitatives~:}
+
+Diagramme circulaire~: pie
+
+\begin{verbatim}
+attach(employes)
+table(stat_pro)
+pie(table(stat_pro))
+barplot(prop.table(table(stat_pro)),col=1:3)
+\end{verbatim}
+%\newpage
+Diagramme en colonnes
+
+\begin{verbatim}
+barplot(table(stat_pro))
+barplot(prop.table(table(stat_pro)),col=1:3)
+\end{verbatim}
+
+{\it Pour les variables quantitatives discrètes~:}
+
+Diagramme en bâtons (respecte l'espacement des valeurs)~:
+
+\begin{verbatim}
+#diagramme en effectif
+plot(table(educ),lwd=5,col="red",xlab="Nombre d'années d'études",
+ylab="effectif",main="Diagramme en bâtons de la variable educ")
+
+# diagramme en fréquence
+n=length(educ)
+plot(table(educ)/n,lwd=5,col="red",xlab="Nombre d'années d'études",
+ylab="effectif",
+main="Diagramme en bâtons de la variable educ")
+\end{verbatim}
+
+{\it Pour les variables quantitatives continues~:}
+
+Histogramme~: \begin{verbatim}  hist(salaire)  \end{verbatim}
+
+\bigskip
+
+Boîte à moustaches~: \begin{verbatim} boxplot(salaire)  \end{verbatim}
+
+\bigskip
+
+Diagramme de dispersion (nuage de points)
+\begin{verbatim}
+ plot(salaire,age,xlab="âge",ylab="salaire")
+ # salaire en ordonnée, âge en abscisse
+ avec les labels des axes
+\end{verbatim}
+
+\medskip
+
+{\it Exercice (à faire en autonomie)}
+
+\medskip
+Le fichier de données {\tt employes.txt} concerne 474 employés d'une entreprise américaine.
+Les variables relevées sont les suivantes~:
+\begin{itemize}
+\item sexe (2 pour masculin, 1 pour féminin)
+\item éducation~: nombre d'années passées à l'école
+\item statut professionnel (1 si "employé de bureau", 2 si "agent de sécurité", 3 si "manager")
+\item salaire annuel à l'embauche dans l'entreprise (en dollars)
+\item salaire annuel courant (en dollars)
+\item ancienneté dans l'entreprise en nombre de mois
+\item expérience passée (en nombre de mois)
+\item nationalité (1 pour américaine, 0 sinon)
+\item âge (en années)
+\end{itemize}
+\begin{enumerate}
+\item Importer le fichier {\tt employes.txt} sous {\tt R}.
+\item Transformer les variables qualitatives du fichier en facteurs et mettre des labels.
+
+\item Donner des résumés numériques et des graphiques représentant les distributions des variables  du fichier "employes".
+
+\item Donner la matrice des corrélations (arrondie à 2 décimales) entre les variables quantitatives du fichier. Commenter.
+
+
+\item Sauver le script.
+\end{enumerate}
+
+
+\end{document} 
