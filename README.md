@@ -10,11 +10,7 @@ Ce cours a été élaboré par [**Zaineb Smida**](https://smida.perso.math.cnrs.fr/)
 
 ## Les principales méthodes d'analyse des données se séparent en deux groupes :
 
-### 1. **Les méthodes de classification**
-
-Ces méthodes visent à réduire la taille de l'ensemble des individus en formant des groupes homogènes.
-
-### 2. **Les méthodes factorielles**
+### 1. **Les méthodes factorielles**
 
 Ces méthodes cherchent à réduire le nombre de variables en les résumant en un petit nombre de composantes synthétiques.
 
@@ -22,6 +18,10 @@ Selon le type de données, c'est-à-dire si l'on travaille avec un tableau de **va
 
 -   **Analyse en Composantes Principales (ACP)** pour les variables quantitatives.
 -   **Analyse Factorielle des Correspondances (AFC)** pour les variables qualitatives.
+
+### 2. **Les méthodes de classification**
+
+Ces méthodes visent à réduire la taille de l'ensemble des individus en formant des groupes homogènes.
 
 ------------------------------------------------------------------------
 
