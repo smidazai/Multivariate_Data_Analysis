@@ -1,4 +1,4 @@
-# Cours : Analyse des données multidimensionnelles           [<img src="https://www.insa-lyon.fr/sites/www.insa-lyon.fr/files/logo-version1.jpg" alt="INSA Logo" width="50" height="50"/>]{style="margin-left: 10px;"}
+# Cours : Analyse des données multidimensionnelles
 
 #### **Enseignante : Zaineb Smida**
 
