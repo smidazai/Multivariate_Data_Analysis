@@ -2,6 +2,8 @@
 
 #### **Enseignante : Zaineb Smida**
 
+**Contact** : [zaineb.smida\@insa-lyon.fr](mailto:zaineb.smida@insa-lyon.fr)
+
 Ce dossier contient les supports de cours (diapositives, notes de cours, et travaux pratiques) destinés aux étudiants de 5ème année GEA de l'INSA Lyon.
 
 Ce cours a été élaboré par [**Zaineb Smida**](https://smida.perso.math.cnrs.fr/), en s'inspirant principalement des enseignements de [**Sandrine Casanova**](https://www.tse-fr.eu/people/sandrine-casanova) et [**Anne Ruiz-Gazen**](https://www.tse-fr.eu/fr/people/anne-ruiz-gazen).
