@@ -34,7 +34,7 @@ L'objectif est de présenter quatre méthodes principales d'analyse des données mu
 1.  **Analyse en Composantes Principales (ACP)**
 2.  **Analyse Factorielle des Correspondances (AFC)**
 3.  **Méthodes de classification non supervisée :**
-    -   Agrégation autour des moyennes mobiles (AMM)
+    -   Agrégation autour des Moyennes Mobiles (AMM)
     -   Classification Ascendante Hiérarchique (CAH)
 
 ------------------------------------------------------------------------
