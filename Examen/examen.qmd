@@ -1,0 +1,210 @@
+---
+title: "Examen sur l'analyse multidimensionnelle"
+author: "Zaineb Smida"
+date: last-modified
+lang: fr
+format:
+  pdf:
+    embed-resources: true
+    self-contained-math: true
+    self-contained: true
+    code-fold: true
+    code-summary: "Show the code"
+    number-sections: true
+    standalone: true
+params:
+  solution: true
+execute: 
+  cache: false
+---
+
+**Consignes :** dans la première partie, une analyse multidimensionnelle a été réalisée sur un jeu de donnée. Seuls  les tableaux de résultats et graphiques sont inclus dans l'énnoncé. Vous devrez répondre à 8 questions qui doivent permettre d'interpréter les sorties données par **R**. Chaque question vaut 2.5 points. Pour chaque réponse, vous devrez indiquer le tableau (ou graphique) que vous avez utilisé pour répondre à la question. Pensez à bien argumenter chacune de vos réponses. **Aucun document n'est autorisé**. 
+
+**Durée : ** 1 heure
+
+```{r, echo = F}
+library(kableExtra)
+print_table <- function(my_tab, position = "H") {
+  my_tab[, 1:ncol(my_tab)] <- lapply(my_tab[, 1:ncol(my_tab)], 
+                function(x) {
+    cell_spec(round(x, 3), bold = T, color = spec_color(abs(x), end = 0.9),
+              font_size = spec_font_size(abs(x)))
+                  })
+  kbl(my_tab, escape = F, align = "c", position = position) %>%
+    kable_styling(position = 'center', font_size = 8, 
+                  latex_options = 'HOLD_position') %>%
+    kable_classic("striped", full_width = F)
+}
+```
+
+**Description des données :** 
+
+Le fichier étudié concerne les performances des athlètes lors de deux événements sportifs. Plus précisément, le tableau de données comprend 41 lignes et 13 colonnes : les dix premières colonnes correspondent aux performances des athlètes pour les 10 épreuves du décathlon : 
+
+* `100m` : le 100 mètres (en seconde), 
+* `Long.jump` : le saut en longueur (en mètre), 
+* `Shot.put` : le lancer du poids (en mètre), 
+* `High.jump` : le saut en hauteur (en mètre),
+* `400m` : le 400 mètres (en seconde),
+* `110m.hurdle` : le 110 mètres haies (en seconde), 
+* `Discus` : le lancer du disque (en mètre), 
+* `Pole.vault` : le saut à la perche (en mètre), 
+* `Javeline` : le lancer du javelot (en mètre) 
+* `1500m` : le 1500 mètres (en seconde)
+
+Les colonnes 11 (variable `Rank`) et 12 (variable `Points`) correspondent respectivement au classement et aux points obtenus. La dernière colonne (variable `Competition`) est une variable catégorielle correspondant à l'événement sportif (Jeux olympiques de 2004 ou Décastar 2004).
+
+On affiche les premières lignes du jeu de données :
+```{r, echo = F}
+library("FactoMineR")
+data("decathlon")
+head(decathlon, n = 5)
+```
+
+On traite ces données par une analyse en composantes principales normée. Les principaux résultats de cette ACP sont indiqués ci-dessous :
+
+**Graphique des corrélations**
+
+```{r, echo = F, fig.width = 6, fig.height = 5.5}
+cor <- cor(decathlon[, 1:10])
+ggcorrplot::ggcorrplot(cor, hc.order = TRUE, type = "lower", lab = TRUE)
+```
+
+**Valeurs Propres & stat. associées**
+```{r, echo = F}
+my_pca <- PCA(decathlon[, 1:10], graph = F)
+my_pca$eig
+```
+
+**Les coordonnées des variables sur les axes** 
+
+```{r, echo = F}
+print_table(as.data.frame(my_pca$var$coord)[, 1:4], position = "h")
+```
+
+**Les contributions des variables sur les axes** 
+
+```{r, echo = F}
+print_table(as.data.frame(my_pca$var$contrib)[, 1:4], position = "h")
+```
+
+\newpage
+
+**Les coordonnées des individus sur les axes**
+
+```{r, echo = F}
+df <- as.data.frame(my_pca$ind$coord[, 1:4])
+print_table(df, position = "h")
+```
+
+\newpage
+
+**Les cosinus carrés des individus sur les axes**
+
+```{r, echo = F}
+df <- as.data.frame(my_pca$ind$cos2)[, 1:4]
+print_table(df, position = "h")
+```
+
+\newpage
+
+**Graphique des variables (dim 1, 2) :**
+```{r, fig.width = 5, fig.height = 5, echo = F, warning = F}
+plot(my_pca, axes = c(1, 2), choix = "var", title = "")
+```
+
+**Graphique des variables (dim 3, 4) :**
+```{r, fig.width = 5, fig.height = 5, echo = F, warning = F}
+plot(my_pca, axes = c(3, 4), choix = "var", title = "")
+```
+
+
+\newpage
+
+**Graphique des individus (dim 1, 2) :**
+```{r, fig.width = 4, fig.height = 4, echo = F, warning = F}
+plot(my_pca, axes = c(1, 2), choix = "ind", title = "")
+```
+
+**Graphique des individus (dim 3, 4) :**
+```{r, fig.width = 4, fig.height = 4, echo = F, warning = F}
+plot(my_pca, axes = c(3, 4), choix = "ind", title = "")
+```
+
+## Question (2.5pts)
+
+Que représente le graphique des corrélations ? Décrire les corrélations les plus fortes (positives et négatives). Pourquoi l'ACP est-elle justifiée ?  
+
+
+## Question (2.5pts)
+
+A quoi correspond la somme des valeurs propres ? On choisit de n'étudier que les 4 premières composantes principales. Justifier ce choix en analysant le tableau des valeurs propres
+
+
+## Question (2.5pts)
+
+Quels sont les individus les mieux représentées dans chacun des axes retenus. Précisez le signe des coordonnées correspondantes. 
+
+
+## Question (2.5pts)
+
+Pour chaque axe retenu, quelles sont les variables les mieux représentées. Précisez le signe des coordonnées correspondantes. 
+Pouvez-vous confirmer cela à partir du graphique des variables ?  
+
+
+## Question (2.5pts)
+
+Faire la synthèse de l'ACP. 
+
+## Question (2.5pts)
+
+On a représenté les scores finaux (variable quantitative) obtenus par les athlètes en fonction de la compétition (variable qualitative), sous forme de boîtes à moustaches parallèles. D'après le graphique, est-ce que les athlètes performent mieux dans une compétition plutôt qu'une autre ? Confirmez (ou non) votre réponse en utilisant la sortie **R** suivante. 
+
+```{r}
+boxplot(Points ~ Competition, data = decathlon)
+res_lm <- lm(Points ~ Competition, data = decathlon)
+anova(res_lm)
+```
+
+## Question (2.5pts)
+
+On a réalisé une classification sur les 4 premières composantes principales de l'ACP. Comme s'appelle le graphique ci-dessous ? Quel est le nom de la méthode de classification utilisée ? L'examen de ce graphique suggère de réaliser une partition des athlètes, soit en 2 classes, soit en 6 classes. Justifier ? 
+
+```{r, fig.height = 5, fig.width = 6.5}
+par(mar = c(3, 3, 0.5, 0.5))
+my_dist <- dist(my_pca$ind$coord[, 1:4])
+resuclassif <- hclust(my_dist, method = "ward.D2")
+plot(resuclassif, main = "")
+```
+
+## Question (2.5pts)
+
+On décide de garder 6 classes qu'on représente dans les graphiques de l'ACP suivants. Comment peut-on décrire les positions des 6 classes précédentes sur le graphique de l'ACP ?
+
+
+```{r}
+decathlon$my_cluster <- factor(cutree(resuclassif, k = 6))
+```
+
+
+```{r include=params$solution, echo = F, fig.width = 10, fig.height = 5}
+my_col <- RColorBrewer::brewer.pal(6, "Set3")
+par(las = 1,  mar = c(3, 3, 0.75, 0.5), mgp = c(2., 1, 0), 
+    mfrow = c(1, 2))
+plot(my_pca$ind$coord[, 1], my_pca$ind$coord[, 2], main = "", 
+     xlab = "PCA 1", ylab = "PCA 2",
+     col = my_col[decathlon$my_cluster], pch = 16)
+text(my_pca$ind$coord[, 1], my_pca$ind$coord[, 2], 
+     row.names(decathlon), cex = 0.4, pos = 3)
+abline(h = 0, lty = 2)
+abline(v = 0, lty = 2)
+plot(my_pca$ind$coord[, 1], my_pca$ind$coord[, 3], main = "", 
+     xlab = "PCA 3", ylab = "PCA 4",
+     col = my_col[decathlon$my_cluster], pch = 16)
+text(my_pca$ind$coord[, 1], my_pca$ind$coord[, 3], 
+     row.names(decathlon), cex = 0.4, pos = 3)
+abline(h = 0, lty = 2)
+abline(v = 0, lty = 2)
+legend("topright", legend = paste0("G", 1:6), pch = 16,
+       col = my_col)
+```

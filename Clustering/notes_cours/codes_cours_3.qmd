@@ -1,0 +1,392 @@
+---
+title: "Notes de cours et codes sur la classification non supervisée (clustering)"
+author: "Zaineb Smida"
+lang: fr
+format:
+  pdf:
+    toc: true
+    embed-resources: true
+    self-contained-math: true
+    self-contained: true
+    code-fold: true
+    code-summary: "Show the code"
+    number-sections: true
+    standalone: true
+params:
+  solution: true
+execute: 
+  cache: false
+header-includes:
+  - \usepackage{graphicx}
+  - \usepackage{fancyhdr}
+  - \usepackage{float}
+  - |
+    % Ajuster la hauteur de l'en-tête
+    \addtolength{\headheight}{2.5cm}
+
+    % Appliquer le style fancy pour toutes les pages
+    \pagestyle{fancy}
+
+    % Configurer le texte et logo dans l'en-tête
+    \fancyhead[L]{\textbf{5GEA - Analyse des données multidimensionnelles}}  % Texte à gauche
+    \fancyhead[R]{\includegraphics[height=0.8cm]{logo_INSA.pdf}}  % Logo à droite
+
+    % Ajouter une ligne horizontale sous l'en-tête
+    \renewcommand{\headrulewidth}{0.4pt}  % Ligne horizontale sous l'en-tête
+
+    % Appliquer le même en-tête pour la première page
+    \fancypagestyle{plain}{
+      \fancyhead[L]{\textbf{5GEA - Analyse des données multidimensionnelles}}  % Texte à gauche
+      \fancyhead[R]{\includegraphics[height=0.8cm]{logo_INSA.pdf}}  % Logo à droite
+      \renewcommand{\headrulewidth}{0.4pt}  % Ligne horizontale sous l'en-tête
+    }
+
+    % Ajouter la ligne horizontale et l'email dans le pied de page avec le numéro de page
+    \fancyfoot[L]{\href{mailto:zaineb.smida@insa-lyon.fr}{zaineb.smida@insa-lyon.fr}}  % Adresse e-mail à gauche
+    \fancyfoot[C]{}  % Désactiver le numéro de page centré
+    \fancyfoot[R]{\thepage}  % Numéro de page à droite
+    \renewcommand{\footrulewidth}{0.4pt}  % Ligne horizontale dans le pied de page
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H')
+```
+
+Packages nécessaires :
+
+```{r, message = F, eval = F}
+install.packages("cluster")
+```
+
+## Rappels de statistique bivariée
+
+On s'intéresse ici au lien entre une variable $Y$ quantitative et une variable qualitative $X$.
+
+On considère le jeu de données `iris` qui est constituée de 150 observations concernant des fleurs sur lesquelles on observe 4 variables quantitative (exprimées en cm) et une variable qualitative (3 espèces).
+
+```{r}
+head(iris)
+```
+
+On considère la variable `Petal.Width` comme étant la variable $Y$ quantitative et la variable `Species` comme étant la variable $X$ qualitative.
+
+**Objectif :**
+
+1.  présenter des outils de statistique descriptive
+
+2.  décomposer la variance en variance inter-classe et variance intra-classe
+
+3.  calculer le rapport de corrélation $\eta^2$
+
+
+### Outils de statistique descriptive 
+
+On peut dans un premier temps chercher à calculer la moyenne/variance de $Y$ en fonction des classes de $X$. Pour cela on va utiliser la fonction `tapply()`. Le premier argument contient la variable quantitative, le deuxième la variable qualitative et le troisième la fonction statistique qu'on va utiliser sur chaque sous-groupe.
+
+
+
+```{r}
+n_gr <- tapply(X = iris$Petal.Width, INDEX = iris$Species, FUN = length)
+moy_gr <- tapply(X = iris$Petal.Width, INDEX = iris$Species, FUN = mean)
+var_gr <- tapply(X = iris$Petal.Width, INDEX = iris$Species, FUN = var)
+```
+
+On peut ainsi représenter le tableau descriptif suivant :
+
+**Tableau : SD1**
+```{r}
+kableExtra::kbl(data.frame(effectifs = n_gr, moyenne = moy_gr, 
+                           variance = var_gr))
+```
+
+Un graphique très utile est la boîte à moustache parallèle, qui représente la sous-distribution de la variable $Y$ pour chaque classe. Dans une boîte à moustache, la distribution est résumée par la médiane, les 1er et 3ème quartiles, ainsi que les valeurs "extrêmes", i.e. les valeurs situées au-delà d'un seuil supérieur (resp. inférieur), représenté ici par les moustaches.   
+
+```{r, fig.width = 5, fig.height = 4}
+par(las = 1)
+boxplot(Petal.Width ~ Species, data = iris)
+```
+
+**Commentaires :** on observe que la distribution de $Y$ est très différente selon les modalités de $X$. 
+
+
+### Décomposition de la variance 
+
+**Calcul de la variance inter-classe**
+
+On utilise le calcul précédent de la moyenne des groupes :
+
+**Résultat : SD2**
+```{r}
+n <- nrow(iris)
+var_inter <- sum(n_gr * (moy_gr - mean(iris$Petal.Width)) ^ 2) / n
+var_inter
+```
+
+**Calcul de la variance intra-classe**
+
+On utilise le calcul précédent de la variance par groupe :
+
+**Résultat : SD3**
+```{r}
+n <- nrow(iris)
+var_intra <- sum((n_gr - 1) * var_gr) / n
+var_intra
+```
+
+On vérifie que la somme de la variance intra et variance inter est égale à la variance totale :
+
+**Résultat : SD4**
+```{r}
+var_inter + var_intra
+var(iris$Petal.Width) * (n - 1) / n
+```
+
+**Remarque :** par défaut, le logiciel `R` divise par $(n-1)$ et non $n$, ce qui explique les ajustements ci-dessus. 
+
+### Calcul du rapport de corrélation 
+
+**Résultat : SD5**
+```{r}
+var_inter / (var_inter + var_intra)
+```
+
+**Interprétation :** le rapport de corrélation étant proche de 1, on en déduit que les moyennes conditionnelles de $Y$ sont très différentes selon les groupes définis par les modalités de $X$
+
+**Alternative :** pour comparer les moyennes des groupes entre elles, on peut utiliser un test d'analyse de variance (sous hypothèse de normalité des observations) :
+
+```{r}
+anova(lm(Petal.Width ~ Species, data = iris))
+```
+
+Ici, comme la statistique de test est très grande, on peut en conclure que les moyennes ne sont pas toutes égales dans les groupes. 
+
+
+
+## Méthode d'Agrégation autour de Moyennes Mobiles (AMM) ou k-means
+
+On considère le jeu de données suivant :
+
+```{r}
+my_df <- data.frame(
+  REV = c(5, 6, 15, 16, 25, 30),
+  EDUC = c(5, 6, 14, 15, 20, 19)
+)
+my_df
+```
+
+Pour visualiser la relation entre le niveau d'étude et le revenu, on trace le graphique correspondant :
+
+**Figure : Données**
+```{r, fig.width = 5, fig.height = 5}
+plot(my_df$REV, my_df$EDUC, main = "Relation entre le Niveau d'étude et le Revenu",
+     xlab = "REV", ylab = "EDUC")
+```
+La méthode AMM utilise la fonction `kmeans()`, où le premier argument est le jeu de données et le second le nombre de classes souhaité.
+
+Si la fonction est répétée plusieurs fois, les résultats peuvent varier en raison du choix aléatoire des centres initiaux.
+
+L'illustration suivante montre que des centres différents (figure de gauche vs figure de droite) donnent des classifications distinctes.
+
+**Figure CL0**
+```{r, fig.width = 5, fig.height = 5, echo = F}
+par(las = 1, mfrow = c(2, 2), mar = c(3, 3, 0.75, 0.5), mgp = c(2., 1, 0))
+# at the beginning
+# choix 1
+plot(my_df$REV, my_df$EDUC, main = "Choix initial 1", xlab = "X1", ylab = "X2")
+points(my_df$REV[1:3], my_df$EDUC[1:3], col = c("magenta", "cyan", "orange"),
+       pch = 3)
+legend("topleft", legend = paste0("G", 1:3), pch = 3,
+       col = c("magenta", "cyan", "orange"))
+# choix 2
+plot(my_df$REV, my_df$EDUC, main = "Choix initial 2", xlab = "X1", ylab = "X2")  
+points(my_df$REV[c(1, 3, 5)], my_df$EDUC[c(1, 3, 5)], 
+       col = c("magenta", "cyan", "orange"),
+       pch = 3)
+# at the end
+# choix 1
+plot(my_df$REV, my_df$EDUC, col = c("magenta", "cyan", rep("orange", 4)), 
+     pch = 16, xlab = "X1", ylab = "X2", main = "Classes finales") 
+points(my_df$REV[1:2], my_df$EDUC[1:2], col = c("magenta", "cyan"), pch = 3)
+points(mean(my_df$REV[3:6]), mean(my_df$EDUC[3:6]), col = "orange", pch = 3)
+# choix 2
+plot(my_df$REV, my_df$EDUC, col = rep(c("magenta", "cyan", "orange"), each = 2), 
+     pch = 16, xlab = "X1", ylab = "X2", main = "Classes finales") 
+points(mean(my_df$REV[1:2]), mean(my_df$EDUC[1:2]), col = "magenta", pch = 3)
+points(mean(my_df$REV[3:4]), mean(my_df$EDUC[3:4]), col = "cyan", pch = 3)
+points(mean(my_df$REV[5:6]), mean(my_df$EDUC[5:6]), col = "orange", pch = 3)
+```
+
+
+**Choix du nombre de classe** :
+La fonction `silhouette()` du package **cluster** permet de retourner le coefficient silouhette des observations pour un cluster donné. Ici, on calcule la moyenne des coefficients silhouette en faisant varier le nombre de classes. Ici, on voit que le choix optimal du nombre de classes est 3. 
+
+```{r, fig.width = 5, fig.height = 4}
+library(cluster) 
+avgsil = function(k) {
+    km.res = kmeans(my_df, centers = k, nstart = 100)
+    ss = silhouette(km.res$cluster, dist(my_df))
+    mean(ss[, 3])
+}
+k.values <- 2:5
+avgsilvalues <- sapply(k.values, avgsil)
+plot(k.values, avgsilvalues, type = "b", pch = 19,
+     xlab = "Number of clusters K", ylab = "Average Silhouettes")
+```
+
+
+Pour obtenir des résultats stables, l'argument `nstart=` permet de tester plusieurs centres initiaux et la fonction retourne les classes les plus stables :
+
+**Tableau CL1**
+```{r}
+classif <- kmeans(my_df, 3, nstart = 10)
+names(classif)
+```
+
+Pour obtenir les résultats de la classification. On obtient les numéros du groupe auquel chaque observation est affectée :
+
+**Tableau CL2** 
+```{r}
+classif$cluster
+```
+
+Les centres (ou moyennes) des groupes, dont les coordonnées doivent être commentées pour réaliser la typologie, sont donnés par :
+
+**Tableau CL3** 
+```{r}
+classif$centers
+```
+
+Le nombre d'individus dans chaque groupe est donné par :
+
+**Tableau CL4** 
+```{r}
+classif$size
+```
+
+
+Les sommes des carrés associées à la classification sont présentées ci-dessous : 
+
+**Tableau CL5** 
+
+* somme des carrés inter-groupes :
+```{r}
+classif$betweenss
+```
+
+* somme des carrés totale :
+```{r}
+classif$totss
+```
+
+* somme des carrés intra-groupes : 
+```{r}
+classif$tot.withinss 
+```
+* somme des carrés pour chaque groupe :
+```{r}
+classif$withinss 
+```
+
+On calcule le rapport inertie inter-classes / inertie totale ainsi :
+
+**Tableau CL6** 
+```{r}
+R2 <- classif$betweenss/classif$totss
+R2
+```
+
+
+Comme il n'y a que deux variables ici, on peut représenter les groupes sur le nuage de points : 
+
+```{r, fig.width = 4, fig.height = 4}
+my_col <- c("magenta", "cyan", "orange")
+par(las = 1,  mar = c(3, 3, 0.75, 0.5), mgp = c(2., 1, 0))
+plot(my_df$REV, my_df$EDUC, main = "", xlab = "X1", ylab = "X2",
+     col = my_col[classif$cluster], pch = 16)
+points(classif$centers, col = my_col, pch = 3)
+legend("topleft", legend = paste0("G", 1:3), pch = 16,
+       col = c("magenta", "cyan", "orange"))
+```
+
+On représente les boîtes à moustaches parallèles des deux variables utilisées en fonction des classes obtenues. On présente l'illustration, même s'il n'y a pas suffisamment d'observations pour obtenir un graphique convenable.
+
+**Figure CL7** 
+```{r, fig.width = 6, fig.height = 3.5}
+par(mfrow = c(1, 2), las = 1)
+boxplot(my_df$REV ~ classif$cluster)
+boxplot(my_df$EDUC ~ classif$cluster)
+```
+
+
+Les rapports de corrélations entre les deux variables dans ce cas sont donnés par :
+
+**Tableau CL8** 
+```{r}
+summary(lm(my_df$REV ~ as.factor(classif$cluster)))$r.squared
+```
+```{r}
+summary(lm(my_df$EDUC ~ as.factor(classif$cluster)))$r.squared
+```
+
+## Classification Ascendante Hiérarchique (CAH)
+
+D'abord, on calcule la matrice de distance entre les observations à l'aide de la fonction `dist()` :
+
+```{r}
+my_dist <- dist(my_df)
+my_dist
+```
+**Commentaires :** on voit que la distance la plus faible est celle entre les observations 1 et 2. Ces deux observations seront donc rassemblées à l'étape 1 de l'algorithme. 
+
+
+A partir de cette matrice de distance, la fonction `hclust()` va faire la CAH. L'argument `method=` permet d'indiquer quelle méthode il faut utiliser pour calculer les distances entre deux groupes. Parmi les méthodes possibles, on utilise ici la méthode de Ward :
+
+**Tableau CL9**
+```{r}
+classif2 <- hclust(my_dist, method = "ward.D2")
+```
+
+Plusieurs valeurs sont retournées par la fonction :
+```{r}
+names(classif2)
+```
+
+
+On repésente le graphique des hauteurs : 
+
+**Figure CL10**
+```{r}
+nbcluster <- 5:1
+plot(nbcluster, classif2$height, type = "b", pch = 16)
+```
+
+On représente le dendrogramme directement avec la fonction `plot()`.
+
+**Figure CL11**
+```{r}
+plot(classif2)
+```
+**Commentaire :** on observe un saut important en choisissant 3 classes. 
+
+
+Pour récupérer les numéros de groupe auquel chaque observation est affectée, on utilise la fonction `cutree()` en indiquent le nombre de classes choisi. 
+**Tableau CL12** : 
+```{r}
+groupe2 <- cutree(classif2, k = 3) 
+groupe2
+```
+**Commentaires :** on trouve les mêmes classes qu'en utilisant la méthode des $k$-means
+
+On peut également afficher les groupes sur le nuage de points:
+
+**Figure CL13** 
+```{r, fig.width = 4, fig.height = 4}
+my_col <- c( "cyan", "magenta", "orange")
+par(las = 1,  mar = c(3, 3, 0.75, 0.5), mgp = c(2., 1, 0))
+plot(my_df$REV, my_df$EDUC, main = "", xlab = "X1", ylab = "X2",
+     col = my_col[groupe2], pch = 16)
+centers <- aggregate(my_df, list(groupe2), mean)[,-1]
+points(centers, col = my_col, pch = 3)
+legend("topleft", legend = paste0("G", 1:3), pch = 16,
+       col = c( "cyan", "magenta", "orange"))
+```

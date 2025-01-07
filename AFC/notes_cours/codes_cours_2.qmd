@@ -1,0 +1,352 @@
+---
+title: "Notes de cours et codes sur l'AFC"
+author: "Zaineb Smida"
+lang: fr
+format:
+  pdf:
+    toc: true
+    embed-resources: true
+    self-contained-math: true
+    self-contained: true
+    code-fold: true
+    code-summary: "Show the code"
+    number-sections: true
+    standalone: true
+params:
+  solution: true
+execute: 
+  cache: false
+header-includes:
+  - \usepackage{graphicx}
+  - \usepackage{fancyhdr}
+  - \usepackage{float}
+  - |
+    % Ajuster la hauteur de l'en-tête
+    \addtolength{\headheight}{2.5cm}
+
+    % Appliquer le style fancy pour toutes les pages
+    \pagestyle{fancy}
+
+    % Configurer le texte et logo dans l'en-tête
+    \fancyhead[L]{\textbf{5GEA - Analyse des données multidimensionnelles}}  % Texte à gauche
+    \fancyhead[R]{\includegraphics[height=0.8cm]{logo_INSA.pdf}}  % Logo à droite
+
+    % Ajouter une ligne horizontale sous l'en-tête
+    \renewcommand{\headrulewidth}{0.4pt}  % Ligne horizontale sous l'en-tête
+
+    % Appliquer le même en-tête pour la première page
+    \fancypagestyle{plain}{
+      \fancyhead[L]{\textbf{5GEA - Analyse des données multidimensionnelles}}  % Texte à gauche
+      \fancyhead[R]{\includegraphics[height=0.8cm]{logo_INSA.pdf}}  % Logo à droite
+      \renewcommand{\headrulewidth}{0.4pt}  % Ligne horizontale sous l'en-tête
+    }
+
+    % Ajouter la ligne horizontale et l'email dans le pied de page avec le numéro de page
+    \fancyfoot[L]{\href{mailto:zaineb.smida@insa-lyon.fr}{zaineb.smida@insa-lyon.fr}}  % Adresse e-mail à gauche
+    \fancyfoot[C]{}  % Désactiver le numéro de page centré
+    \fancyfoot[R]{\thepage}  % Numéro de page à droite
+    \renewcommand{\footrulewidth}{0.4pt}  % Ligne horizontale dans le pied de page
+---
+Packages nécessaires :
+
+```{r, message = F, eval = F}
+install.packages(c("FactoMineR", "kableExtra", "RColorBrewer", "vcd"))
+```
+
+## Importation de données 
+
+Pour importer un fichier texte sous **R**, on utilise la fonction `read.table()`
+
+```{r}
+lessive <- read.table("data/achat_lessive.txt")
+```
+
+## Création de la table de contingence
+
+Pour rappel, ce tableau est un résumé d'un jeu de données avec N=391 observations et deux variables qualitatives, dont les premières lignes ont cette forme :
+
+```{r}
+head(lessive)
+```
+
+Le nombre d'observations est donné par: 
+
+```{r}
+N <- nrow(lessive)
+```
+
+La table de contingence entre deux variables qualitatives s'obtient avec la fonction `table()`. Il s'agit d'un résumé exhaustif du tableau de données initial :
+
+**Tableau de contingence :**
+```{r, echo = T}
+tablessive <- table(lessive)
+kableExtra::kbl(addmargins(tablessive))
+```
+
+## Le test du $\chi^2$ d'indépendance
+
+Le test du $\chi^2$ d'indépendance permet d'évaluer si deux variables qualitatives sont indépendantes. Nous présentons d'abord la construction théorique du test, suivie d'une application pratique à l'aide de la fonction `chisq.test()` de `R`.
+
+### Construction théorique du test  
+
+Le test du $\chi^2$ consiste à calculer la distance entre la table de contingence observée et la table de contingence théorique. Cette dernière correspond à la table de contingence qu'on devrait avoir, dans l'hypothèse où les deux variables Age et Achat seraient indépendantes et en gardant les mêmes marges que le tableau initial.
+
+Pour obtenir le tableau des effectifs théoriques, on considère le produit matriciel de la marge en colonne par la transposé de la marge en ligne, divisé par l'éffectif total :
+
+```{r}
+tab_th <- rowSums(tablessive) %*% t(colSums(tablessive)) / N
+row.names(tab_th) <- row.names(tablessive)
+kableExtra::kbl(round(tab_th))
+```
+
+**Remarque :** si on calculait les profils lignes et colonnes de cette table, on verrait qu'ils sont tous égaux.
+
+Pour calculer le tableau des contributions, on calcule d'abord l'écart à l'indépendance en considérant la différence entre la table observée et la table théorique, divisée par l'écart-type de la table théorique.
+
+```{r}
+ecart <- (tablessive - tab_th) / sqrt(tab_th)
+```
+
+Ce tableau nous permet de déterminer quelles sont les couples de modalités les plus sur/sous-représentées.
+
+```{r}
+library(kableExtra)
+print_table <- function(my_tab, position = "H") {
+  my_tab[, 1:ncol(my_tab)] <- lapply(my_tab[, 1:ncol(my_tab)], 
+                function(x) {
+    cell_spec(round(x, 3), bold = T, color = spec_color(abs(x), end = 0.9),
+              font_size = spec_font_size(abs(x)))
+                  })
+    kbl(my_tab, escape = F, align = "c", position = position) %>%
+    kable_styling(position = 'center',latex_options = 'HOLD_position') %>%
+    kable_classic("striped", full_width = F)
+}
+print_table(as.data.frame(as(ecart, "matrix")), position = "H")
+```
+
+**Commentaires :** par exemple, la modalité "SYST" est sur-représentée chez les plus de 60 ans, alors qu'elle est sous-représentée chez les 45-59 ans et les 19-24 ans.
+
+Pour calculer les contributions, il suffit de prendre le tableau des écarts au carré.
+
+```{r}
+contrib <- ecart ^ 2
+contrib
+```
+
+En prenant la somme du tableau des contributions, on obtient la statistique du test du $\chi^2$ :
+
+```{r}
+sum(contrib)
+```
+
+Cette valeur se retrouve directement avec la fonction `chisq.test()`.
+
+### Application pratique avec la fonction chisq.test de R
+
+**Tableau : Test du $\chi^2$ d'indépendance**
+```{r, warning = F}
+res_chi2 <- chisq.test(tablessive)
+res_chi2
+```
+
+On trouve également directement le tableau d'effectif théorique sous l'hypothèse d'indépendance, ainsi que le tableau des écarts.
+
+**Tableau : Effectifs théoriques**
+```{r}
+tab_th <- res_chi2$expected
+round(tab_th)
+```
+
+
+**Tableau : Résultats des écarts ** 
+```{r}
+ecart <- res_chi2$residuals
+ecart
+```
+
+
+
+La fonction `mosaic()` du package **vcd** offre une manière alternative de visualiser les écarts significatifs :
+
+```{r,fig.width=6, fig.height=5}
+library(vcd)
+mosaic(tablessive, shade = T, gdp = shading_Friendly,
+       rot_labels = c(20, 90, 0, 70))
+```
+
+Cela met en avant l'aspect d'une représentation différente des écarts tout en restant clair et précis. 
+
+
+On peut ainsi définir le tableau des contributions au $\chi^2$ comme suit :
+
+**Tableau : Résultats des contributions au $\chi^2$ **
+```{r}
+contrib <- ecart^2
+print_table(as.data.frame(as(contrib, "matrix")))
+```
+
+## Analyse descriptive : profils lignes et profils colonnes
+
+Il existe plusieurs façons de décrire un tableau de contingence et plus précisément déterminer s'il existe un lien entre les deux variables qualitatives.
+
+### Profils lignes
+
+On peut par exemple calculer les profils lignes et les comparer entre eux :
+
+**Tableau : Profils lignes**
+```{r}
+library(kableExtra)
+tabPL <- prop.table(tablessive, 1)
+kbl(round(addmargins(tabPL, 2), digits = 2))
+```
+
+Une façon de les représenter graphiquement est d'utiliser la fonction barplot(). Un diagramme des profils lignes, représenté de manière juxtaposée, est donné par :
+
+**Figure : Diagramme 1 des profils lignes **
+```{r, fig.width = 6, fig.height = 4.5}
+library(RColorBrewer)
+ barplot(t(tabPL), beside= T, horiz = T, las = 1, cex.names = 0.5,
+         main = "Distributions conditionnelles de la fréquence d'achat sachant
+         l'âge", cex.main=0.8, legend.text = T,
+         col= brewer.pal(4, name= "Set3"),
+         args.legend = list(x = "top", ncol = 4, bty = "n", cex = 0.6))
+```
+
+Ou bien, on peut les répresenter comme suit :
+
+**Figure : Diagramme 2 des profils lignes **
+```{r, fig.width = 6, fig.height = 4.5}
+library(RColorBrewer)
+ barplot(t(tabPL), horiz= T, las = 1, cex.names = 0.5,
+         legend.text = T, col= brewer.pal(4, name= "Set3"),
+         args.legend = list(x = "top", ncol = 4, bty = "n", cex = 0.6))
+```
+
+**Commentaires :** on voit que les pourcentages sont différents d'une ligne à une autre. Par exemple, la modalité "JAMAIS" est observé dans $20\%$ des cas chez les plus jeunes, alors qu'elle est beaucoup moins représentée dans les autres classes d'âge (par exemple, $4\%$ environ chez les 35-44 ans).
+
+### Profils colonnes
+
+On peut aussi calculer les profils colonnes et les comparer entre eux :
+
+**Tableau : Profils colonnes**
+```{r}
+tabPC <- prop.table(tablessive, 2)
+kbl(round(addmargins(tabPC, 1), digits = 2))
+```
+
+On peut également les représenter graphiquement de manière juxtaposée comme suit :
+
+**Figure : Diagramme 1 des profils colonnes **
+```{r, fig.width = 4, fig.height = 6}
+library(RColorBrewer)
+ barplot(tabPC, beside= T, horiz = F, las = 2, cex.names = 0.5,
+         legend.text = T, col= brewer.pal(6, name= "Set3"),
+         args.legend = list(x = "topright", ncol = 1, bty = "n", cex = 0.6))
+```
+
+Ou bien, on peut les répresenter comme suit : 
+
+**Figure : Diagramme 2 des profils colonnes **
+```{r, fig.width = 4, fig.height = 5}
+library(RColorBrewer)
+ barplot(tabPC, horiz = F, las = 2, cex.names = 0.5,
+         legend.text = T, col= brewer.pal(6, name= "Set3"),
+         args.legend = list(x = "topright", ncol = 1, bty = "n", cex = 0.6))
+```
+
+On constate également que les profils colonnes varient entre eux. Ainsi, les personnes qui achètent "SYST" ou "LPDT" font majoritairement partie des classes d'âge supérieures à 35 ans.
+
+## Analyse Factorielle des Correspondances
+
+La fonction `CA()` du package **FactoMineR** s'utilise directement sur le tableau de contingence.
+
+
+```{r, message = F}
+library("FactoMineR")
+res_afc <- CA(tablessive, graph = F)
+```
+
+### AFC : Valeurs propres
+On représente les valeurs propres et le pourcentage d'inertie expliquée :
+
+**Tableau : AFC-Valeurs propres**
+```{r}
+res_afc$eig
+```
+
+**Commentaires** : On garde deux axes selon le critère de la part d'inertie expliquée.
+
+### AFC : Intérprétation des axes
+
+Nous présentons ici les informations relatives aux profils-lignes et aux profils-colonnes.
+
+#### AFC : Coordonnées
+On représente les coordonnées des profils-lignes :
+
+**Tableau : AFC-Coordonnées des profils-lignes**
+```{r}
+res_afc$row$coord[,1:2]
+```
+
+On peut également afficher les coordonnées des profils-colonnes :
+
+**Tableau : AFC-Coordonnées des profils-colonnes**
+```{r}
+res_afc$col$coord[,1:2]
+```
+
+
+#### AFC : Contributions
+On représente les contributions des profils-lignes :
+```{r}
+res_afc$row$coord[,1:2]
+```
+
+De plus, il est possible d'ajouter des couleurs pour mieux visualiser les contributions des profils-lignes :
+
+**Tableau : AFC-Contributions des profils-lignes**
+```{r, message = F}
+print_table(as.data.frame(res_afc$row$contrib)[, 1:2])
+```
+
+
+On peut également représenter les contributions des profils-colonnes :
+
+**Tableau : AFC-Contributions des profils-colonnes**
+```{r, message = F}
+print_table(as.data.frame(res_afc$col$contrib)[, 1:2])
+```
+
+**Commentaires :** sur l'Axe 1, on retrouve les modalités 60 ans et plus, 20-24 ans pour les profils lignes et la modalité "SYS" pour les profils colonnes. Sur l'axe 2, on retrouve les modalités 15-19 ans, 45-59 ans pour les profils lignes et la modalité "LPDT" pour les profils colonnes.
+
+### Qualité de représentation
+
+On représente les mesures de la qualité de représentation `cos2` des profils-lignes et des profils-colonnes sur les axes principaux :
+
+
+**Tableau : ACP-Cos2 des profils lignes**
+```{r, message = F}
+print_table(as.data.frame(res_afc$row$cos2)[, 1:2])
+```
+
+**Tableau : ACP-Cos2 des profils colonnes**
+```{r, message = F}
+print_table(as.data.frame(res_afc$col$cos2)[, 1:2])
+```
+
+**Commentaires :** sur l'Axe 1, les modalités les mieux représentées sont : 20-24 ans, 60 ans et plus, "systématiquement", "occasionnellement", et sur l'axe 2 : 15-19 ans, 25-34 ans, 45-49 ans, "lpdt", "jamais".
+
+### Représentation graphique
+
+Les coordonnées des profils-lignes et des profils-colonnes sont représentées simultanément :
+
+
+**AFC-Graphique des modalités (profils)**
+```{r, message = F}
+plot(res_afc)
+```
+
+**Commentaires :**
+
+- **Axe 1 :** sur-représentation des acheteurs systématiques de lessive écologique parmi les plus de 60 ans au contraire des 20-24 ans ;
+- **Axe 2 :** sous-représentation des 15-19 ans achetant la plupart du temps de la lessive écologique au contraire des 45-59 ans.

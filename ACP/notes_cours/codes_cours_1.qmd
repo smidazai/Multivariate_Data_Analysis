@@ -1,0 +1,377 @@
+---
+title: "Notes de cours et codes sur l'ACP"
+author: "Zaineb Smida"
+lang: fr
+format:
+  pdf:
+    toc: true
+    embed-resources: true
+    self-contained-math: true
+    self-contained: true
+    code-fold: true
+    code-summary: "Show the code"
+    number-sections: true
+    standalone: true
+params:
+  solution: true
+execute: 
+  cache: false
+header-includes:
+  - \usepackage{graphicx}
+  - \usepackage{fancyhdr}
+  - \usepackage{float}
+  - |
+    % Ajuster la hauteur de l'en-tête
+    \addtolength{\headheight}{2.5cm}
+
+    % Appliquer le style fancy pour toutes les pages
+    \pagestyle{fancy}
+
+    % Configurer le texte et logo dans l'en-tête
+    \fancyhead[L]{\textbf{5GEA - Analyse des données multidimensionnelles}}  % Texte à gauche
+    \fancyhead[R]{\includegraphics[height=0.8cm]{logo_INSA.pdf}}  % Logo à droite
+
+    % Ajouter une ligne horizontale sous l'en-tête
+    \renewcommand{\headrulewidth}{0.4pt}  % Ligne horizontale sous l'en-tête
+
+    % Appliquer le même en-tête pour la première page
+    \fancypagestyle{plain}{
+      \fancyhead[L]{\textbf{5GEA - Analyse des données multidimensionnelles}}  % Texte à gauche
+      \fancyhead[R]{\includegraphics[height=0.8cm]{logo_INSA.pdf}}  % Logo à droite
+      \renewcommand{\headrulewidth}{0.4pt}  % Ligne horizontale sous l'en-tête
+    }
+
+    % Ajouter la ligne horizontale et l'email dans le pied de page avec le numéro de page
+    \fancyfoot[L]{\href{mailto:zaineb.smida@insa-lyon.fr}{zaineb.smida@insa-lyon.fr}}  % Adresse e-mail à gauche
+    \fancyfoot[C]{}  % Désactiver le numéro de page centré
+    \fancyfoot[R]{\thepage}  % Numéro de page à droite
+    \renewcommand{\footrulewidth}{0.4pt}  % Ligne horizontale dans le pied de page
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H')
+```
+
+Packages nécessaires :
+
+```{r, message = F, eval = F}
+install.packages(c("FactoMineR", "ggcorrplot", "kableExtra"))
+```
+
+## Importation des données
+
+Pour importer un fichier texte sous **R**, on utilise la fonction `read.table()`
+
+```{r}
+regions <- read.table("data/regions.txt", header = TRUE)
+```
+
+**Tableau 1** : Affichage des premières lignes du fichier
+
+```{r}
+head(regions)
+```
+
+Pour chaque région de France, on observe :
+
+-   POPUL : population de la région (en milliers d'individus)
+
+-   TACT : taux d'activité (population active / population totale de la région) en pourcentage
+
+-   SUPERF : superficie de la région (en kilomètres carrés)
+
+-   NBENTR : nombre d'entreprises de la région
+
+-   NBBREV : nombre de brevets déposés au cours de l'année
+
+-   CHOM : taux de chômage (en pourcentage)
+
+-   TELEPH : nombre de lignes téléphoniques en place dans la région (en milliers)
+
+On ajoute le nom des individus au `data.frame` :
+
+```{r}
+row.names(regions) <- regions$REGION
+```
+
+## Analyse Descriptive
+
+### Analyse Univariée
+
+On considère dans un premier temps des outils statistiques utilisés pour décrire les variables quantitatives une par une.
+
+-   Résumé statistique des variables quantitatives (minimum, maximum, moyenne, médiane, quartiles) :
+
+```{r}
+summary(regions[, -c(1, 2)])
+```
+
+-   Affichage des distributions, en utilisant des histogrammes et densités non paramétriques:
+
+**Figure 1 : Histogrammes** :
+
+```{r, fig.width=12, fig.height = 6}
+par(mfrow = c(2, 4), las = 1)
+nom_var <- c("population (en milliers d'individus)",
+  "taux d activité en %",
+  "superficie de la région (en km^2)",
+  "nombre d entreprises de la région", 
+  "nombre de brevets déposés au cours de l année", 
+  "taux de chômage (en %)",
+  "nombre de lignes téléphoniques (en milliers)")
+for(k in 3:9) {
+  temp <- density(regions[, k])
+  hist(regions[, k], main = names(regions)[k], 
+       xlab = nom_var[k-2], ylab = "densité", probability = T,
+       col = "lightblue", ylim = range(temp$y))
+  lines(temp, col = "royalblue", lty = 2, lwd = 1.5)
+  rug(regions[, k], col = "red")
+}
+```
+
+**Remarque :** les ordres de grandeurs sont parfois très différents d'une variable à une autre. En effet, certaines variables sont des comptages (POPUL, SUPERF), alors que d'autres sont des pourcentages (CHO); c'est pourquoi, il pourrait être intéressant de reproduire ce graphique sur les données centrées et réduites. Par ailleurs, on observe quelques valeurs atypiques (par exemple, NBBREV ou POPUL ont chacune une valeur extrêmement forte par rapport aux autres; il s'agit probablement de la région Ile-de-France)
+
+### Analyse Bivariée
+
+-   On trace les nuages de points entre chaque paire de variable, ce qui permet de détecter d'éventuels liens (linéaires ou non linéaires) entre les paires de variables ainsi que des valeurs atypiques. Par exemple, on constate que le lien entre certaines variables (comme SUPERF et NBENTR) n'est pas linéaire, à cause notamment d'une valeur (il s'agit de l'Ile-de-France dont la superficie est très faible comparativement au nombre d'entreprises qu'elle possède).
+
+**Figure 2 : Nuage de points** :
+
+```{r, fig.width = 14, fig.height = 12}
+pairs(regions[, 3:9], main = "Matrice des nuages de points", 
+      pch = 19, col = "blue", panel = panel.smooth)
+
+```
+
+On peut tracer directement les nuages de points qui nous intéressent et représenter par la même occasion la droite de régression linéaire. On représente ici les liens les plus forts.
+
+```{r, fig.width = 12, fig.height = 5}
+par(las = 1, mfrow = c(1, 2))
+plot(TACT ~ CHOM, data = regions,
+     pch = 19, 
+     col = "blue")
+abline(lm(TACT ~ CHOM, data = regions), col = "red", lty = 2)
+
+plot(NBENTR ~ POPUL, data = regions,
+     pch = 19, 
+     col = "blue")
+abline(lm(NBENTR ~ POPUL, data = regions), col = "red", lty = 2)
+
+```
+
+Enfin, on peut représenter la matrice de corrélations linéaires :
+
+**Figure 3 : Matrice des corrélations** :
+
+```{r, message = F}
+library("ggcorrplot")
+cor <- cor(regions[3:9])
+cor
+```
+
+ou bien, on peut représenter les résultats comme suit afin de mieux apprécier les corrélations positives/négatives (couleurs bleues/rouges):
+
+```{r}
+ggcorrplot(cor, hc.order = TRUE, type = "lower", lab = TRUE)
+```
+
+**Remarque :** la variable POPUL est très positivement (linéairement) corrélée à TELEPH et NBENTR, ce qui est logique, puisque plus une région est peuplée, plus il doit y avoir de lignes téléphoniques et d'entreprises. On constate aussi que CHOM est négativement (linéairement) corrélée à TACT : plus il y a du chômage, moins le taux d'activité est élevé. L'ACP semble être une bonne méthode afin de bien appréhender l'ensemble de ces corrélations non nulles.
+
+## Analyse en Composantes Principales
+
+La fonction `PCA()` du package **FactoMineR** retourne par défaut le graphique des individus et le graphique des variables. En utilisant l'option graph = FALSE, on empêche la représentation graphique. En effet, avant de regarder le graphique des individus et des variables, il peut être intéressant de regarder un certain nombre d'informations.
+
+```{r, message = F}
+library("FactoMineR")
+res <- PCA(regions[, 3:9], graph = FALSE)
+```
+
+On récupère les informations qui nous intéressent, à savoir les valeurs propres, mais aussi les informations relatives aux individus et aux variables ainsi.
+
+```{r, message = F}
+eigenvalues <- res$eig
+res_individus <- res$ind
+res_variables <- res$var
+```
+
+### ACP : Valeurs propres
+
+A partir des informations retournées, on affiche les valeurs propres et les parts d'inertie expliquées par chaque composante :
+
+**Tableau : ACP-Valeurs propres** :
+
+```{r}
+eigenvalues
+```
+
+**Commentaires** :
+
+-   les deux premiers axes expliquent à eux seuls $80\%$ de la variance totale.
+-   les trois premières valeurs propres sont supérieures à 1.
+
+On trace à présent l'éboulis des valeurs propres :
+
+**Figure : ACP-Eboulis des valeurs propres** :
+
+```{r, fig.width = 6, fig.height = 4}
+par(las = 1)
+plot(eigenvalues[,1], type = "b", pch = 19,
+     xlab = "Indice des valeurs propres",
+     ylab = "Valeurs propres",
+     main = "Eboulis des valeurs propres")
+```
+
+**Commentaires** : d'après l'éboulis des valeurs propres, on voit un coude à k = 4. Donc, par ce critère, on retient uniquement les trois premières composantes principales.
+
+### ACP : Interprétation des variables
+
+-   On affiche les informations relatives aux variables :
+
+**Tableau : ACP-Variables** :
+
+```{r}
+res_variables
+```
+
+-   On affiche les corrélations relatives aux variables :
+
+```{r}
+res_variables$cor[,1:3]
+```
+
+-   On affiche les coordonnées des variables dans les trois premiers axes :
+
+**Tableau : ACP-Variables-Coordonnées** :
+
+```{r}
+res_variables$coord[, 1:3]
+```
+
+**Remarque :** dans le cas d'une ACP réalisée sur la matrice de corrélation, les corrélations entre les variables et les axes correspondent aux coordonnées des variables sur les axes.
+
+-   On peut ajouter des couleurs afin de visualiser les variables les plus corrélées aux axes, en utilisant une petite fonction créée par nous-mêmes :
+
+```{r, echo = T}
+library(kableExtra)
+print_table <- function(my_tab, position = "H") {
+  my_tab[, 1:ncol(my_tab)] <- lapply(my_tab[, 1:ncol(my_tab)], 
+                function(x) {
+    cell_spec(round(x, 3), bold = T, color = spec_color(abs(x), end = 0.9),
+              font_size = spec_font_size(abs(x)))
+                  })
+  kbl(my_tab, escape = F, align = "c", position = position) %>%
+    kable_styling(position = 'center',latex_options = 'HOLD_position') %>%
+    kable_classic("striped", full_width = F)
+}
+```
+
+-   On affiche le tableau avec les couleurs pour visualiser correctement les corrélations :
+
+```{r}
+print_table(as.data.frame(res_variables$coord)[, 1:3], position = "h")
+```
+
+-   on s'intéresse à présent aux contributions des variables pour déterminer quelles sont les variables qu'il faudra interpréter. Une forte contribution sera une contribution supérieure à $100/7=14.29$.
+
+**Tableau: ACP-Variables-Contributions :**
+
+```{r}
+print_table(as.data.frame(res_variables$contrib)[, 1:3], position = "h")
+```
+
+Sur l'axe 1, les variables NBREV, TELEPH, POPUL et NBENTR ont des contributions fortes. La variable CHOM a une contribution importante sur l'axe 2. On constate que la contribution de TACT est plus importante sur l'axe 2 que sur l'axe 1. On interprétera donc cette variable sur l'axe 2 uniquement (bien que cette variable soit aussi corrélée à l'axe 1). Enfin, la variable SUPERF a une forte contribution sur l'axe 3.
+
+-   on représente le graphique des variables sur les deux premiers axes de l'ACP :
+
+**Figure : ACP-Graphique des variables (dim 1 - dim 2) :**
+
+```{r, fig.width = 3.5, fig.height = 3.5}
+plot(res, axes = c(1, 2), choix = "var")
+```
+
+-   on représente le graphique des variables sur les axes 1 et 3 de l'ACP :
+
+**Figure : ACP-Graphique des variables (dim 1 - dim 3) :**
+
+```{r, fig.width = 3.5, fig.height = 3.5}
+plot(res, axes = c(1, 3), choix = "var")
+```
+
+**Commentaires** :
+
+-   on voit que l'axe 1 représente près de $62\%$ de l'inertie totale et le deuxième axe représente $20\%$. Autrement dit, ces deux variables expliquent à elles seules plus de $80\%$ de l'inertie totale. L'axe 3 représente environ $15\%$ de l'inertie totale.
+
+-   L'axe 1 est fortement corrélé positivement aux variables NBENTR, POPUL, TELEPH et NBBREV. Il s'agit de toutes les variables qui représentent à la base des comptages, à l'exception de SUPERF. On peut supposer que cette dernière variable se comporte différemment des autres. Autrement dit, on observera des coordonnées fortes positives sur l'axe 1 pour les régions qui ont les plus grandes valeurs de NBENTR, POPUL, TELEPH et NBBREV et au contraire, on observera des coordonnées fortes négatives pour les régions ayant des plus petites valeurs pour NBENTR, POPUL, TELEPH et NBBREV.
+
+-   L'axe 2 est quant à lui fortement corrélé positivement à la variable CHOM et négativement à la variable TACT. Autrement dit, cet axe va opposer des régions avec un taux de chômage élevé et un faible taux d'activité (coordonnées fortes positives sur l'axe 2) avec des régions avec un taux de chômage peu élevé et un fort taux d'activité (coordonnées fortes négatives sur l'axe 2).
+
+-   L'axe 3 est corrélé à la variable SUPERF. Autrement dit, cet axe va opposer les régions de grande taille (coordonnées fortes positive sur l'axe 3) avec les régions de petites tailles.
+
+### ACP : Interprétation des individus
+
+-   Dans un premier temps, on affiche les coordonnées des individus dans les trois premières composantes principales :
+
+**Tableau : ACP-individus-Coordonnées** :
+
+```{r}
+df <- as.data.frame(res_individus$coord)[, 1:3]
+print_table(df)
+```
+
+-   on vérifie la qualité de représentation des individus. Il existe plusieurs outils :
+
+**Tableau : ACP-individus-distance :**
+
+```{r}
+dist <- res_individus$dist
+dist
+```
+
+**Tableau : ACP-individus-Cos2 :** on voit les individus qu'il faudrait commenter (sur l'axe 1, les valeurs doivent être supérieures à 0.5, sur l'axe 2, les valeurs doivent êtres supérieures à 0.25 et sur l'axe 3, les valeurs doivent être supérieures à 0.15).
+
+```{r}
+df <- as.data.frame(res_individus$cos2)[, 1:3]
+print_table(df)
+```
+
+**Tableau : ACP-individus-contributions :** une forte contribution est une contribution supérieure à $100 \times 1/n$.
+
+```{r}
+res_individus$contrib[,1:3]
+```
+
+-   Enfin, on va réprésenter le graphique des individus sur les deux premiers axes de l'ACP, ainsi que sur les axes 1 et 3 :
+
+**Figure : ACP-Graphique des individus (dim 1 - dim 2) :**
+
+```{r, fig.width = 6, fig.height = 6, warning = F}
+plot(res, axes = c(1, 2), choix = "ind")
+```
+
+**Figure : ACP-Graphique des individus (dim 1 - dim 3) :**
+
+```{r, fig.width = 6, fig.height = 6, warning = F}
+plot(res, axes = c(1, 3), choix = "ind")
+```
+
+**Commentaires** :
+
+-   Les régions d'Ile-de-France et Rhône-Alpes sont celles qui ont les coordonnées les plus fortes sur l'axe 1. Autrement dit, il s'agit des régions qui ont les plus fortes valeurs de NBENTR, POPUL, TELEPH et NBBREV. Au contraire, les régions Picardie, Poitou-Charrentes, Auvergne, Champagne-Ardennes ont des valeurs plutôt faibles sur l'axe 2, ce qui en fait des régions avec des valeurs plus faibles de NBENTR, POPUL, TELEPH et NBBREV.
+
+-   Sur l'axe 2, on constate que les régions Langudoc-Roussillon, Nord-Pas-de-Calais, Aquitaine et PACA ont des valeurs élevées, ce qui impliquent des valeurs fortes de CHOM et faible de TACT. Au contraire, l'Alsace, Bourgogne, Franche-Comté, Limousin ont des valeurs élevées négatives, ce qui indique que la variable TACT a une valeur élevée alors que CHOM a une valeur faible.
+
+-   La région Provence-Côte d'Azur a des valeurs plutôt fortes sur les deux axes, ce qui semble indiquer que c'est une grosse région en terme de NBENTR, POPUL, TELEPH et NBBREV et avec du chômage.
+
+-   Sur l'axe 3, on voit que les régions Rhône-Alpes, Midi-Pyrénées et Centre ont les plus grandes valeurs et correspondent aux régions avec les plus grandes superficies. Au contraire, les régions Ile-de-France et Pas-de-Calais ont des valeurs négatives fortes sur l'axe 3 et correspondent à des petites régions en terme de superficie
+
+### Pour aller plus loi
+
+On a vu que l'Ile-de-France semblait fortement influencer les résultats de l'ACP. Il s'agirait donc de refaire la même analyse, en ajoutant cette observation comme "individu supplémentaire".
+
+```{r}
+res <- PCA(regions[, 3:9], ind.sup = 11, graph = FALSE)
+```
+
+**Commentaires** :
+
+En refaisant l'analyse, on devrait se rendre compte que deux axes sont suffisants, l'axe 1 opposant les régions avec les plus grandes valeurs pour NBENTR, POPUL, TELEPH et NBBREV, le deuxième axe opposant les régions avec une forte proportion de travailleurs v.s. un fort taux de chômage.
